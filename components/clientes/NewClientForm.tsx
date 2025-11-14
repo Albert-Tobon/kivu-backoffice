@@ -56,7 +56,8 @@ const NewClientForm: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // ⬇️ Ahora es async y llama al backend que integra con DocuSeal
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
 
@@ -81,6 +82,20 @@ const NewClientForm: React.FC = () => {
 
       const newList = [...existing, newClient];
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(newList));
+
+      // ⚡ Llamada a tu API interna que a su vez llama a DocuSeal
+      try {
+        await fetch("/api/docuseal/submission", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ client: newClient }),
+        });
+      } catch (error) {
+        console.error("Error llamando a DocuSeal:", error);
+        // No detenemos el flujo del usuario, solo registramos el error
+      }
 
       router.push("/dashboard");
     } catch (error) {
