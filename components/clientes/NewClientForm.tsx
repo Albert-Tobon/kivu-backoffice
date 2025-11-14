@@ -128,7 +128,32 @@ const NewClientForm: React.FC = () => {
         console.error("Error llamando a Alegra:", error);
       }
 
-      // 4) Volver al dashboard
+      // 4) Mikrowisp
+    try {
+      const mwResp = await fetch("/api/microwisp/client", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ client: newClient }),
+      });
+
+      if (mwResp.ok) {
+        const data = await mwResp.json();
+        const microwispId = data?.microwispId as number | undefined;
+
+        if (microwispId) {
+          newList = newList.map((c) =>
+            c.id === newClient.id ? { ...c, microwispId } : c
+          );
+          window.localStorage.setItem(STORAGE_KEY, JSON.stringify(newList));
+        }
+      } else {
+        console.error("Error Mikrowisp:", mwResp.status, await mwResp.text());
+      }
+    } catch (error) {
+      console.error("Error llamando a Mikrowisp:", error);
+    }
+
+      // 5) Volver al dashboard
       router.push("/dashboard");
     } catch (error) {
       console.error("Error guardando cliente:", error);
