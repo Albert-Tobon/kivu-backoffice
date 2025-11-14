@@ -1,5 +1,7 @@
 // components/clientes/types.ts
 
+export const STORAGE_KEY = "kivuClients";
+
 export interface Client {
   id: string;
   nombre: string;
@@ -8,6 +10,7 @@ export interface Client {
   correo: string;
   telefono: string;
   direccion: string;
+  departamento: string;
   municipio: string;
-  createdAt: string;
+  createdAt: string; // ISO string
 }

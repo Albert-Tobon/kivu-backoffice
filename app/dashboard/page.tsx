@@ -3,57 +3,44 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { Button } from "../../components/ui/button";
-
-const STORAGE_KEY = "kivuClients";
-
-interface Client {
-  id: string;
-  nombre: string;
-  apellido: string;
-  cedula: string;
-  correo: string;
-  telefono: string;
-  direccion: string;
-  departamento?: string;
-  municipio?: string;
-  createdAt?: string;
-}
+import Button from "../../components/ui/button";
+import EditClientForm from "../../components/clientes/EditClientForm";
+import type { Client } from "../../components/clientes/types";
+import { STORAGE_KEY } from "../../components/clientes/types";
 
 export default function DashboardPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [showDetails, setShowDetails] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    try {
-      const stored = window.localStorage.getItem(STORAGE_KEY);
-      if (stored) {
+    const stored = window.localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      try {
         setClients(JSON.parse(stored));
+      } catch (error) {
+        console.error("Error leyendo clientes:", error);
       }
-    } catch (error) {
-      console.error("Error leyendo clientes:", error);
     }
   }, []);
 
+  const selectedClient =
+    clients.find((c) => c.id === selectedClientId) || null;
+
   const handleView = (id: string) => {
-    if (selectedClientId === id && showDetails) {
-      setShowDetails(false);
-      setSelectedClientId(null);
-    } else {
-      setSelectedClientId(id);
-      setShowDetails(true);
-    }
+    setSelectedClientId(id);
+    setShowDetails(true);
+    setEditing(false);
   };
 
   const handleDelete = (id: string) => {
-    if (!window.confirm("¿Seguro que quieres eliminar este cliente?")) return;
+    const confirmed = confirm("¿Seguro que quieres eliminar este cliente?");
+    if (!confirmed) return;
 
-    const updated = clients.filter((c) => c.id !== id);
-    setClients(updated);
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    const newList = clients.filter((c) => c.id !== id);
+    setClients(newList);
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(newList));
 
     if (selectedClientId === id) {
       setSelectedClientId(null);
@@ -61,95 +48,102 @@ export default function DashboardPage() {
     }
   };
 
-  const selectedClient = clients.find((c) => c.id === selectedClientId) ?? null;
-
   return (
-    <main className="min-h-screen bg-slate-50">
-      <section className="max-w-6xl mx-auto pt-10 pb-16">
-        <header className="flex items-center justify-between mb-6">
+    <main className="min-h-screen bg-slate-50 px-4 py-10">
+      <div className="mx-auto max-w-6xl space-y-6">
+        {/* Header */}
+        <header className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
           <div>
-            <h1 className="text-3xl font-semibold text-slate-900">
-              Bienvenido al Backoffice de KIVU
+            <span className="inline-flex items-center rounded-full bg-[#ACF227]/10 px-3 py-1 text-xs font-semibold text-[#ACF227] ring-1 ring-[#ACF227]/40">
+              Backoffice KIVU
+            </span>
+            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">
+              Gestión de clientes
             </h1>
-            <p className="mt-2 text-sm text-slate-500">
-              Aquí verás tus clientes y podrás crear nuevos que luego se
-              sincronizarán con DocuSeal, MikroWISP y Alegra.
+            <p className="mt-2 max-w-xl text-sm text-slate-600">
+              Administra tus clientes, edita su información y mantén tu
+              operación sincronizada con tus sistemas.
             </p>
           </div>
 
           <Link href="/clientes/nuevo">
-            <Button>+ Nuevo cliente</Button>
+            <Button className="rounded-full px-5 py-2 text-sm font-semibold shadow-md shadow-[#ACF227]/40">
+              + Nuevo cliente
+            </Button>
           </Link>
         </header>
 
-        {/* Tabla de clientes */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-50 border-b border-slate-100">
-              <tr className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                <th className="px-6 py-3">Nombre</th>
-                <th className="px-6 py-3">Cédula</th>
-                <th className="px-6 py-3">Correo</th>
-                <th className="px-6 py-3">Teléfono</th>
-                <th className="px-6 py-3">Fecha</th>
-                <th className="px-6 py-3 text-right">Acciones</th>
+        {/* Tabla */}
+        <section className="overflow-hidden rounded-2xl bg-white shadow-lg ring-1 ring-slate-200">
+          <table className="min-w-full divide-y divide-slate-200">
+            <thead className="bg-slate-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Nombre
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Cédula
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Correo
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Teléfono
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Fecha
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Acciones
+                </th>
               </tr>
             </thead>
-            <tbody>
+
+            <tbody className="divide-y divide-slate-200 bg-white">
               {clients.length === 0 ? (
                 <tr>
                   <td
                     colSpan={6}
-                    className="px-6 py-10 text-center text-sm text-slate-500"
+                    className="px-6 py-6 text-center text-sm text-slate-500"
                   >
-                    No hay clientes registrados aún. Crea el primero con el
-                    botón{" "}
-                    <span className="font-semibold text-slate-700">
-                      &quot;Nuevo cliente&quot;
-                    </span>
-                    .
+                    No hay clientes registrados. Crea uno nuevo para comenzar.
                   </td>
                 </tr>
               ) : (
-                clients.map((client) => (
+                clients.map((c) => (
                   <tr
-                    key={client.id}
-                    className="border-t border-slate-100 hover:bg-slate-50/70"
+                    key={c.id}
+                    className="transition hover:bg-slate-50"
                   >
-                    <td className="px-6 py-3 text-slate-800">
-                      {client.nombre} {client.apellido}
+                    <td className="px-6 py-4 text-sm font-medium text-slate-900">
+                      {c.nombre} {c.apellido}
                     </td>
-                    <td className="px-6 py-3 text-slate-700">
-                      {client.cedula}
+                    <td className="px-6 py-4 text-sm text-slate-700">
+                      {c.cedula}
                     </td>
-                    <td className="px-6 py-3 text-slate-700">
-                      {client.correo}
+                    <td className="px-6 py-4 text-sm text-slate-700">
+                      {c.correo}
                     </td>
-                    <td className="px-6 py-3 text-slate-700">
-                      {client.telefono}
+                    <td className="px-6 py-4 text-sm text-slate-700">
+                      {c.telefono}
                     </td>
-                    <td className="px-6 py-3 text-slate-600">
-                      {client.createdAt
-                        ? new Date(client.createdAt).toLocaleDateString(
-                            "es-CO"
-                          )
-                        : "-"}
+                    <td className="px-6 py-4 text-sm text-slate-700">
+                      {new Date(c.createdAt).toLocaleDateString("es-CO")}
                     </td>
-                    <td className="px-6 py-3">
+                    <td className="px-6 py-4">
                       <div className="flex justify-end gap-2">
                         <Button
-                          variant="secondary"
-                          className="px-3 py-1 text-xs"
-                          onClick={() => handleView(client.id)}
+                          size="sm"
+                          className="rounded-full text-xs font-semibold"
+                          onClick={() => handleView(c.id)}
                         >
-                          {selectedClientId === client.id && showDetails
-                            ? "Ocultar"
-                            : "Ver"}
+                          Ver
                         </Button>
                         <Button
                           variant="danger"
-                          className="px-3 py-1 text-xs"
-                          onClick={() => handleDelete(client.id)}
+                          size="sm"
+                          className="rounded-full text-xs font-semibold"
+                          onClick={() => handleDelete(c.id)}
                         >
                           Eliminar
                         </Button>
@@ -160,89 +154,121 @@ export default function DashboardPage() {
               )}
             </tbody>
           </table>
-        </div>
+        </section>
 
-        {/* Panel de detalle */}
-        <div className="mt-8">
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 px-8 py-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-slate-900">
-                Detalle del cliente
-              </h2>
+        {/* Mensaje inicial */}
+        {!showDetails && (
+          <section className="rounded-2xl bg-white p-6 text-center text-sm text-slate-600 shadow-md ring-1 ring-slate-200">
+            Selecciona un cliente de la tabla para ver sus detalles o editarlo.
+          </section>
+        )}
 
-              {selectedClient && (
-                <span className="inline-flex items-center rounded-full bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">
-                  {selectedClient.municipio
-                    ? `${selectedClient.municipio} · ${
-                        selectedClient.departamento ?? ""
-                      }`
-                    : selectedClient.departamento
-                    ? `Sin municipio · ${selectedClient.departamento}`
-                    : "Sin municipio"}
-                </span>
-              )}
+        {/* Detalle del cliente */}
+        {showDetails && selectedClient && !editing && (
+          <section className="rounded-2xl bg-white p-6 shadow-md ring-1 ring-slate-200">
+            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">
+                  Detalle del cliente
+                </h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  Información rápida del cliente seleccionado.
+                </p>
+              </div>
+              <Button
+                className="rounded-full px-4 py-2 text-sm font-semibold"
+                onClick={() => setEditing(true)} // 🔧 AQUÍ SE ARREGLA
+              >
+                Editar cliente
+              </Button>
             </div>
 
-            {!showDetails || !selectedClient ? (
-              <p className="text-sm text-slate-500">
-                Selecciona un cliente y pulsa{" "}
-                <span className="font-medium">&quot;Ver&quot;</span> para ver
-                sus datos.
-              </p>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-16 text-sm text-slate-800">
-                <div>
-                  <p className="text-xs font-semibold text-slate-500">
-                    NOMBRE COMPLETO
-                  </p>
-                  <p className="mt-1">
-                    {selectedClient.nombre} {selectedClient.apellido}
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-xs font-semibold text-slate-500">CÉDULA</p>
-                  <p className="mt-1">{selectedClient.cedula}</p>
-                </div>
-
-                <div>
-                  <p className="text-xs font-semibold text-slate-500">
-                    CORREO
-                  </p>
-                  <p className="mt-1">{selectedClient.correo}</p>
-                </div>
-
-                <div>
-                  <p className="text-xs font-semibold text-slate-500">
-                    TELÉFONO
-                  </p>
-                  <p className="mt-1">{selectedClient.telefono}</p>
-                </div>
-
-                <div>
-                  <p className="text-xs font-semibold text-slate-500">
-                    DIRECCIÓN
-                  </p>
-                  <p className="mt-1">{selectedClient.direccion}</p>
-                </div>
-
-                <div>
-                  <p className="text-xs font-semibold text-slate-500">
-                    MUNICIPIO / DEPARTAMENTO
-                  </p>
-                  <p className="mt-1">
-                    {selectedClient.municipio
-                      ? `${selectedClient.municipio} - ${
-                          selectedClient.departamento ?? ""
-                        }`
-                      : `- ${selectedClient.departamento ?? ""}`}
-                  </p>
-                </div>
+            <div className="mt-6 grid gap-6 md:grid-cols-2">
+              <div className="space-y-1">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Nombre completo
+                </h4>
+                <p className="text-sm text-slate-900">
+                  {selectedClient.nombre} {selectedClient.apellido}
+                </p>
               </div>
-            )}
-          </div>
-        </div>
-      </section>
+
+              <div className="space-y-1">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Cédula
+                </h4>
+                <p className="text-sm text-slate-900">
+                  {selectedClient.cedula}
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Correo
+                </h4>
+                <p className="text-sm text-slate-900">
+                  {selectedClient.correo}
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Teléfono
+                </h4>
+                <p className="text-sm text-slate-900">
+                  {selectedClient.telefono}
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Departamento
+                </h4>
+                <p className="text-sm text-slate-900">
+                  {selectedClient.departamento}
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Municipio
+                </h4>
+                <p className="text-sm text-slate-900">
+                  {selectedClient.municipio}
+                </p>
+              </div>
+
+              <div className="space-y-1 md:col-span-2">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Dirección
+                </h4>
+                <p className="text-sm text-slate-900">
+                  {selectedClient.direccion}
+                </p>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Formulario de edición */}
+        {editing && selectedClient && (
+          <EditClientForm
+            client={selectedClient}
+            onCancel={() => setEditing(false)}
+            onSave={(updated) => {
+              const newList = clients.map((c) =>
+                c.id === updated.id ? updated : c
+              );
+              setClients(newList);
+              window.localStorage.setItem(
+                STORAGE_KEY,
+                JSON.stringify(newList)
+              );
+              setEditing(false);
+            }}
+          />
+        )}
+      </div>
     </main>
   );
 }

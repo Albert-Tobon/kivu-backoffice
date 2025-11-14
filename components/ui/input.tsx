@@ -1,5 +1,7 @@
 // components/ui/input.tsx
-import React from "react";
+"use client";
+
+import React, { useId } from "react";
 import clsx from "clsx";
 
 export interface InputProps
@@ -12,26 +14,28 @@ export const Input: React.FC<InputProps> = ({
   label,
   error,
   className,
+  id,
   ...props
 }) => {
-  const id = props.id || props.name;
+  const generatedId = useId();
+  const inputId = id ?? generatedId;
 
   return (
-    <div className="space-y-1">
+    <div className="flex flex-col gap-1">
       {label && (
         <label
-          htmlFor={id}
-          className="block text-sm font-medium text-gray-700"
+          htmlFor={inputId}
+          className="text-xs font-medium text-slate-700"
         >
           {label}
         </label>
       )}
 
       <input
-        id={id}
+        id={inputId}
         className={clsx(
-          "block w-full rounded-lg border px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500",
-          error ? "border-red-500" : "border-gray-300",
+          "block w-full rounded-lg border px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
+          error ? "border-red-500" : "border-slate-300",
           className
         )}
         {...props}
