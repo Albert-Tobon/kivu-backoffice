@@ -2,28 +2,20 @@
 import React from "react";
 import clsx from "clsx";
 
-export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "primary" | "outline";
+type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   fullWidth?: boolean;
-}
+};
 
 export const Button: React.FC<ButtonProps> = ({
-  children,
-  variant = "primary",
   fullWidth,
   className,
+  children,
   ...props
 }) => {
   return (
     <button
       className={clsx(
-        "inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition",
-        "focus:outline-none focus:ring-2 focus:ring-offset-2",
-        variant === "primary" &&
-          "bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500",
-        variant === "outline" &&
-          "border border-gray-300 bg-white text-gray-900 hover:bg-gray-50 focus:ring-blue-500",
+        "inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300",
         fullWidth && "w-full",
         className
       )}

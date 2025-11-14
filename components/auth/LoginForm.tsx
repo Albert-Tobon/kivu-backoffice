@@ -1,32 +1,55 @@
 "use client";
 
 // components/auth/LoginForm.tsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 
-const ALLOWED_DOMAIN = "@kivu.com"; // cámbialo por el dominio real de KIVU
+// Podemos permitir varios dominios aceptados
+const ALLOWED_DOMAINS = ["@kivu.com.co", "@gmail.com"];
+const LAST_EMAIL_KEY = "kivu:lastEmail";
+
+type FormErrors = {
+  email?: string;
+  password?: string;
+};
 
 export const LoginForm: React.FC = () => {
   const router = useRouter();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
+  const [savedEmail, setSavedEmail] = useState<string | null>(null);
 
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>(
-    {}
-  );
+  const [errors, setErrors] = useState<FormErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Cargar último correo guardado (si existe)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = localStorage.getItem(LAST_EMAIL_KEY);
+    if (stored) {
+      setEmail(stored);
+      setSavedEmail(stored);
+      setRememberMe(true);
+    }
+  }, []);
+
   const validate = () => {
-    const newErrors: typeof errors = {};
+    const newErrors: FormErrors = {};
 
     if (!email) {
       newErrors.email = "El correo es obligatorio.";
-    } else if (!email.includes("@") || !email.endsWith(ALLOWED_DOMAIN)) {
-      newErrors.email = `Debes usar tu correo corporativo ${ALLOWED_DOMAIN}`;
+    } else if (
+      !email.includes("@") ||
+      !ALLOWED_DOMAINS.some((domain) => email.endsWith(domain))
+    ) {
+      newErrors.email = `Debes usar un correo permitido: ${ALLOWED_DOMAINS.join(
+        " o "
+      )}`;
     }
 
     if (!password) {
@@ -48,11 +71,18 @@ export const LoginForm: React.FC = () => {
     try {
       setLoading(true);
 
-      // 🔐 Aquí luego llamaremos a /api/auth/login
-      // Por ahora simulamos login correcto
+      // Aquí iría autenticación real más adelante
       await new Promise((res) => setTimeout(res, 500));
 
-      // Redirigimos al dashboard
+      // Guardar o borrar el correo según "recordarme"
+      if (typeof window !== "undefined") {
+        if (rememberMe) {
+          localStorage.setItem(LAST_EMAIL_KEY, email);
+        } else {
+          localStorage.removeItem(LAST_EMAIL_KEY);
+        }
+      }
+
       router.push("/dashboard");
     } catch (error) {
       console.error(error);
@@ -72,6 +102,19 @@ export const LoginForm: React.FC = () => {
           <p className="mt-1 text-sm text-slate-500">
             Inicia sesión con tu correo corporativo
           </p>
+
+          {savedEmail && (
+            <p className="mt-2 text-xs text-slate-500">
+              Último acceso con{" "}
+              <button
+                type="button"
+                onClick={() => setEmail(savedEmail)}
+                className="font-medium text-blue-600 underline"
+              >
+                {savedEmail}
+              </button>
+            </p>
+          )}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -79,7 +122,7 @@ export const LoginForm: React.FC = () => {
             type="email"
             name="email"
             label="Correo corporativo"
-            placeholder={`tu.usuario${ALLOWED_DOMAIN}`}
+            placeholder="tu.usuario@kivu.com.co o tu.usuario@gmail.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             error={errors.email}
@@ -96,6 +139,18 @@ export const LoginForm: React.FC = () => {
             error={errors.password}
             autoComplete="current-password"
           />
+
+          <div className="flex items-center justify-between text-sm">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300"
+              />
+              <span>Recordar este usuario en este navegador</span>
+            </label>
+          </div>
 
           {formError && (
             <p className="rounded-md bg-red-50 p-2 text-xs text-red-700">
