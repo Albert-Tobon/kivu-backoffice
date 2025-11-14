@@ -30,6 +30,9 @@ const emptyForm: NewClientFormValues = {
   municipio: "",
 };
 
+// misma clave que usamos en LoginForm
+const LOGIN_EMAIL_KEY = "kivu:userEmail";
+
 const NewClientForm: React.FC = () => {
   const router = useRouter();
   const [form, setForm] = useState<NewClientFormValues>(emptyForm);
@@ -56,7 +59,6 @@ const NewClientForm: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  // ⬇️ Ahora es async y llama al backend que integra con DocuSeal
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
@@ -83,18 +85,26 @@ const NewClientForm: React.FC = () => {
       const newList = [...existing, newClient];
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(newList));
 
-      // ⚡ Llamada a tu API interna que a su vez llama a DocuSeal
+      // 👇 leer correo del usuario KIVU logueado
+      const kivuEmail =
+        typeof window !== "undefined"
+          ? window.localStorage.getItem(LOGIN_EMAIL_KEY)
+          : null;
+
+      // 👇 llamar a API backend que integra con DocuSeal
       try {
         await fetch("/api/docuseal/submission", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ client: newClient }),
+          body: JSON.stringify({
+            client: newClient,
+            kivuEmail, // se lo mandamos al backend
+          }),
         });
       } catch (error) {
         console.error("Error llamando a DocuSeal:", error);
-        // No detenemos el flujo del usuario, solo registramos el error
       }
 
       router.push("/dashboard");

@@ -3,14 +3,12 @@ import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
   try {
-    const { client } = await req.json();
+    const { client, kivuEmail } = await req.json();
 
     const apiKey = process.env.DOCUSEAL_API_KEY;
     const templateId = process.env.DOCUSEAL_TEMPLATE_ID_CONTRATO;
     const apiBase = process.env.DOCUSEAL_API_BASE || "https://docu.kivu.com.co/api";
-
-    // correo kivu del usuario logueado (O de .env.local)
-    const kivuEmail = process.env.KIVU_DEFAULT_EMAIL;
+    const fallbackKivuEmail = process.env.KIVU_DEFAULT_EMAIL || null;
 
     if (!apiKey || !templateId) {
       console.error(
@@ -22,8 +20,11 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!kivuEmail) {
-      console.error("Falta KIVU_DEFAULT_EMAIL en .env.local");
+    // usamos el correo del usuario logueado; si no, el de respaldo
+    const finalKivuEmail = kivuEmail || fallbackKivuEmail;
+
+    if (!finalKivuEmail) {
+      console.error("No se encontró correo KIVU (ni login ni KIVU_DEFAULT_EMAIL)");
       return NextResponse.json(
         { error: "Correo de KIVU no definido" },
         { status: 500 }
@@ -41,9 +42,8 @@ export async function POST(req: Request) {
       body: JSON.stringify({
         template_id: Number(templateId),
         send_email: true,
-
         submitters: [
-          // 👤 1. Cliente
+          // 1. Cliente
           {
             name: fullName || client.nombre,
             email: client.correo,
@@ -56,11 +56,10 @@ export async function POST(req: Request) {
               cedula: client.cedula,
             },
           },
-
-          // 🧑‍💼 2. Usuario KIVU logueado o definido en el .env
+          // 2. Usuario KIVU (logueado en el backoffice)
           {
             name: "KIVU",
-            email: kivuEmail,
+            email: finalKivuEmail,
             external_id: "kivu-user",
             metadata: {
               rol: "KIVU - creador",
@@ -81,7 +80,6 @@ export async function POST(req: Request) {
 
     const data = await resp.json();
     return NextResponse.json({ ok: true, submission: data });
-
   } catch (err) {
     console.error("Error en API /docuseal/submission:", err);
     return NextResponse.json(

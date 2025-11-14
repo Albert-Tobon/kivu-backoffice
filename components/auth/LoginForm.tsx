@@ -9,6 +9,8 @@ import { Input } from "../ui/input";
 // Podemos permitir varios dominios aceptados
 const ALLOWED_DOMAINS = ["@kivu.com.co", "@gmail.com"];
 const LAST_EMAIL_KEY = "kivu:lastEmail";
+// 🔑 clave donde guardamos el correo del usuario logueado
+const LOGIN_EMAIL_KEY = "kivu:userEmail";
 
 type FormErrors = {
   email?: string;
@@ -74,8 +76,11 @@ export const LoginForm: React.FC = () => {
       // Aquí iría autenticación real más adelante
       await new Promise((res) => setTimeout(res, 500));
 
-      // Guardar o borrar el correo según "recordarme"
       if (typeof window !== "undefined") {
+        // ✅ 1) Guardamos SIEMPRE el correo del usuario logueado
+        localStorage.setItem(LOGIN_EMAIL_KEY, email);
+
+        // ✅ 2) Guardar o borrar el correo según "recordarme"
         if (rememberMe) {
           localStorage.setItem(LAST_EMAIL_KEY, email);
         } else {
