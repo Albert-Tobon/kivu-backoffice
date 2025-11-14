@@ -1,9 +1,25 @@
+// components/clientes/NewClientForm.tsx
 "use client";
 
-// components/clientes/NewClientForm.tsx
 import React, { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
+
+const STORAGE_KEY = "kivuClients";
+
+interface Client {
+  id: string;
+  nombre: string;
+  apellido: string;
+  cedula: string;
+  correo: string;
+  telefono: string;
+  direccion: string;
+  departamento: string;
+  municipio: string;
+  createdAt: string;
+}
 
 interface NewClientFormValues {
   nombre: string;
@@ -12,16 +28,58 @@ interface NewClientFormValues {
   correo: string;
   telefono: string;
   direccion: string;
+  departamento: string;
+  municipio: string;
 }
 
-interface StoredClient extends NewClientFormValues {
-  id: string;
-  createdAt: string;
+interface FormErrors {
+  [key: string]: string;
 }
 
-const CLIENTS_KEY = "kivu:clientes";
+/**
+ * Mapa de departamentos de Colombia -> algunos municipios.
+ * Puedes ir agregando más municipios en este objeto.
+ */
+const COLOMBIA_DATA: Record<string, string[]> = {
+  Amazonas: ["Leticia"],
+  Antioquia: ["Medellín", "Envigado", "Bello"],
+  Arauca: ["Arauca"],
+  Atlántico: ["Barranquilla", "Soledad"],
+  Bolívar: ["Cartagena de Indias"],
+  Boyacá: ["Tunja", "Duitama"],
+  Caldas: ["Manizales"],
+  Caquetá: ["Florencia"],
+  Casanare: ["Yopal"],
+  Cauca: ["Popayán"],
+  Cesar: ["Valledupar"],
+  Chocó: ["Quibdó"],
+  "Cundinamarca": ["Arbeláez", "Bogotá D.C.", "Fusagasugá", "Girardot"],
+  Córdoba: ["Montería"],
+  "Guainía": ["Inírida"],
+  "Guaviare": ["San José del Guaviare"],
+  Huila: ["Neiva"],
+  "La Guajira": ["Riohacha"],
+  Magdalena: ["Santa Marta"],
+  Meta: ["Villavicencio"],
+  Nariño: ["Pasto"],
+  "Norte de Santander": ["Cúcuta"],
+  Putumayo: ["Mocoa"],
+  Quindío: ["Armenia"],
+  Risaralda: ["Pereira"],
+  Santander: ["Bucaramanga"],
+  Sucre: ["Sincelejo"],
+  Tolima: ["Ibagué"],
+  "Valle del Cauca": ["Cali", "Palmira"],
+  Vaupés: ["Mitú"],
+  Vichada: ["Puerto Carreño"],
+};
 
-export const NewClientForm: React.FC = () => {
+const DEFAULT_DEPARTAMENTO = "Cundinamarca";
+const DEFAULT_MUNICIPIO = "Arbeláez";
+
+export default function NewClientForm() {
+  const router = useRouter();
+
   const [values, setValues] = useState<NewClientFormValues>({
     nombre: "",
     apellido: "",
@@ -29,190 +87,295 @@ export const NewClientForm: React.FC = () => {
     correo: "",
     telefono: "",
     direccion: "",
+    departamento: DEFAULT_DEPARTAMENTO,
+    municipio: DEFAULT_MUNICIPIO,
   });
 
-  const [errors, setErrors] = useState<Partial<NewClientFormValues>>({});
+  const [errors, setErrors] = useState<FormErrors>({});
+  const [formError, setFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
 
-  // ---------------- VALIDACIÓN ----------------
-  const validate = () => {
-    const newErrors: Partial<NewClientFormValues> = {};
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    const { name, value } = e.target;
 
-    // Nombre y apellido
-    if (!values.nombre.trim()) newErrors.nombre = "Nombre obligatorio";
-    if (!values.apellido.trim()) newErrors.apellido = "Apellido obligatorio";
+    setValues((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
 
-    // Cédula: solo números 6–15 dígitos
-    if (!values.cedula.trim()) {
-      newErrors.cedula = "Cédula obligatoria";
-    } else if (!/^[0-9]{6,15}$/.test(values.cedula.trim())) {
-      newErrors.cedula =
-        "La cédula debe contener solo números (entre 6 y 15 dígitos).";
+    if (errors[name]) {
+      setErrors((prev) => {
+        const copy = { ...prev };
+        delete copy[name];
+        return copy;
+      });
     }
-
-    // Correo válido
-    if (!values.correo.trim()) {
-      newErrors.correo = "Correo obligatorio";
-    } else {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(values.correo.trim())) {
-        newErrors.correo = "Ingresa un correo válido (ej: usuario@dominio.com).";
-      }
-    }
-
-    // Teléfono Colombia: 10 dígitos y empieza por 3
-    if (!values.telefono.trim()) {
-      newErrors.telefono = "Teléfono obligatorio";
-    } else if (!/^3[0-9]{9}$/.test(values.telefono.trim())) {
-      newErrors.telefono =
-        "Teléfono inválido. Debe ser celular colombiano (10 dígitos y empezar por 3).";
-    }
-
-    // Dirección
-    if (!values.direccion.trim()) {
-      newErrors.direccion = "Dirección obligatoria";
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
   };
 
-  // --------------- MANEJO DE INPUTS ---------------
-  const handleChange =
-    (field: keyof NewClientFormValues) =>
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      setValues((prev) => ({ ...prev, [field]: e.target.value }));
-    };
+  const handleDepartamentoChange = (
+    e: React.ChangeEvent<HTMLSelectElement>
+  ) => {
+    const departamento = e.target.value;
+    const municipios = COLOMBIA_DATA[departamento] || [];
+    setValues((prev) => ({
+      ...prev,
+      departamento,
+      municipio:
+        municipios.length > 0 ? municipios[0] : "",
+    }));
+    if (errors.departamento || errors.municipio) {
+      setErrors((prev) => {
+        const copy = { ...prev };
+        delete copy.departamento;
+        delete copy.municipio;
+        return copy;
+      });
+    }
+  };
 
-  // --------------- SUBMIT ---------------
-  const handleSubmit = async (e: React.FormEvent) => {
+  const validate = (): FormErrors => {
+    const newErrors: FormErrors = {};
+
+    if (!values.nombre.trim()) {
+      newErrors.nombre = "El nombre es obligatorio.";
+    }
+
+    if (!values.apellido.trim()) {
+      newErrors.apellido = "El apellido es obligatorio.";
+    }
+
+    if (!values.cedula.trim()) {
+      newErrors.cedula = "La cédula es obligatoria.";
+    } else if (!/^\d{6,12}$/.test(values.cedula.trim())) {
+      newErrors.cedula = "La cédula debe tener solo números (6–12 dígitos).";
+    }
+
+    if (!values.correo.trim()) {
+      newErrors.correo = "El correo es obligatorio.";
+    } else if (
+      !/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(
+        values.correo.trim()
+      )
+    ) {
+      newErrors.correo = "Correo inválido.";
+    }
+
+    if (!values.telefono.trim()) {
+      newErrors.telefono = "El teléfono es obligatorio.";
+    } else if (!/^3\d{9}$/.test(values.telefono.trim())) {
+      newErrors.telefono =
+        "Debe ser un celular colombiano (10 dígitos, empieza por 3).";
+    }
+
+    if (!values.direccion.trim()) {
+      newErrors.direccion = "La dirección es obligatoria.";
+    }
+
+    if (!values.departamento) {
+      newErrors.departamento = "Selecciona un departamento.";
+    }
+
+    if (!values.municipio) {
+      newErrors.municipio = "Selecciona un municipio.";
+    }
+
+    return newErrors;
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setMessage(null);
+    setFormError(null);
 
-    if (!validate()) return;
+    const validationErrors = validate();
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
 
     try {
       setLoading(true);
 
-      // Simulación de delay
-      await new Promise((res) => setTimeout(res, 500));
+      const stored =
+        typeof window !== "undefined"
+          ? window.localStorage.getItem(STORAGE_KEY)
+          : null;
 
-      // Guardar en localStorage
+      const current: Client[] = stored ? JSON.parse(stored) : [];
+
+      const newClient: Client = {
+        id:
+          typeof crypto !== "undefined" && "randomUUID" in crypto
+            ? crypto.randomUUID()
+            : String(Date.now()),
+        nombre: values.nombre.trim(),
+        apellido: values.apellido.trim(),
+        cedula: values.cedula.trim(),
+        correo: values.correo.trim(),
+        telefono: values.telefono.trim(),
+        direccion: values.direccion.trim(),
+        departamento: values.departamento,
+        municipio: values.municipio,
+        createdAt: new Date().toISOString(),
+      };
+
+      const updated = [...current, newClient];
+
       if (typeof window !== "undefined") {
-        const stored = localStorage.getItem(CLIENTS_KEY);
-        const existing: StoredClient[] = stored ? JSON.parse(stored) : [];
-
-        const newClient: StoredClient = {
-          ...values,
-          id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-          createdAt: new Date().toISOString(),
-        };
-
-        existing.push(newClient);
-        localStorage.setItem(CLIENTS_KEY, JSON.stringify(existing));
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
       }
 
-      setMessage("Cliente creado (local). Más adelante lo enviaremos a las APIs.");
-      setValues({
-        nombre: "",
-        apellido: "",
-        cedula: "",
-        correo: "",
-        telefono: "",
-        direccion: "",
-      });
-      setErrors({});
+      // Ir directo al dashboard
+      router.push("/dashboard");
     } catch (error) {
       console.error(error);
-      setMessage("Ocurrió un error al crear el cliente.");
+      setFormError("No pudimos guardar el cliente. Intenta de nuevo.");
     } finally {
       setLoading(false);
     }
   };
 
-  // --------------- UI ---------------
+  const departamentos = Object.keys(COLOMBIA_DATA).sort();
+  const municipios = COLOMBIA_DATA[values.departamento] || [];
+
   return (
-    <main className="min-h-screen bg-slate-50">
-      <div className="mx-auto max-w-4xl px-4 py-10">
-        <h1 className="text-2xl font-semibold text-slate-900">
+    <section className="max-w-6xl mx-auto pt-10 pb-16">
+      <header className="mb-8">
+        <h1 className="text-3xl font-semibold text-slate-900">
           Nuevo cliente
         </h1>
-        <p className="mt-2 text-sm text-slate-600">
+        <p className="mt-2 text-sm text-slate-500">
           Registra un cliente en KIVU. Más adelante este formulario creará el
           cliente también en DocuSeal, MikroWISP y Alegra.
         </p>
+      </header>
 
-        <form
-          onSubmit={handleSubmit}
-          className="mt-8 grid gap-4 rounded-2xl bg-white p-6 shadow-lg md:grid-cols-2"
-        >
-          <div>
-            <Input
-              label="Nombre"
-              value={values.nombre}
-              onChange={handleChange("nombre")}
-              error={errors.nombre}
-            />
-          </div>
+      <form
+        onSubmit={handleSubmit}
+        className="bg-white rounded-2xl shadow-sm border border-slate-100 px-8 py-10 space-y-8"
+      >
+        {/* Nombre / Apellido */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Input
+            label="Nombre"
+            name="nombre"
+            placeholder="Ej: Albert"
+            value={values.nombre}
+            onChange={handleChange}
+            error={errors.nombre}
+          />
+          <Input
+            label="Apellido"
+            name="apellido"
+            placeholder="Ej: Tobon"
+            value={values.apellido}
+            onChange={handleChange}
+            error={errors.apellido}
+          />
+        </div>
 
-          <div>
-            <Input
-              label="Apellido"
-              value={values.apellido}
-              onChange={handleChange("apellido")}
-              error={errors.apellido}
-            />
-          </div>
+        {/* Cédula / Correo */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Input
+            label="Cédula"
+            name="cedula"
+            placeholder="Solo números"
+            value={values.cedula}
+            onChange={handleChange}
+            error={errors.cedula}
+          />
+          <Input
+            label="Correo"
+            name="correo"
+            placeholder="alguien@kivu.com.co"
+            value={values.correo}
+            onChange={handleChange}
+            error={errors.correo}
+          />
+        </div>
 
-          <div>
-            <Input
-              label="Cédula"
-              value={values.cedula}
-              onChange={handleChange("cedula")}
-              error={errors.cedula}
-            />
-          </div>
+        {/* Teléfono / Dirección */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Input
+            label="Teléfono"
+            name="telefono"
+            placeholder="3100000000"
+            value={values.telefono}
+            onChange={handleChange}
+            error={errors.telefono}
+          />
+          <Input
+            label="Dirección"
+            name="direccion"
+            placeholder="Calle 17 # 17-07"
+            value={values.direccion}
+            onChange={handleChange}
+            error={errors.direccion}
+          />
+        </div>
 
-          <div>
-            <Input
-              label="Correo"
-              type="email"
-              value={values.correo}
-              onChange={handleChange("correo")}
-              error={errors.correo}
-            />
-          </div>
-
-          <div>
-            <Input
-              label="Teléfono"
-              value={values.telefono}
-              onChange={handleChange("telefono")}
-              error={errors.telefono}
-            />
-          </div>
-
-          <div>
-            <Input
-              label="Dirección"
-              value={values.direccion}
-              onChange={handleChange("direccion")}
-              error={errors.direccion}
-            />
-          </div>
-
-          <div className="mt-4 md:col-span-2">
-            <Button type="submit" fullWidth disabled={loading}>
-              {loading ? "Creando cliente..." : "Crear cliente"}
-            </Button>
-
-            {message && (
-              <p className="mt-3 text-sm text-slate-600">{message}</p>
+        {/* Departamento / Municipio */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-slate-700">
+              Departamento
+            </label>
+            <select
+              name="departamento"
+              value={values.departamento}
+              onChange={handleDepartamentoChange}
+              className="block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 outline-none"
+            >
+              {departamentos.map((dep) => (
+                <option key={dep} value={dep}>
+                  {dep}
+                </option>
+              ))}
+            </select>
+            {errors.departamento && (
+              <p className="mt-1 text-xs text-red-500">
+                {errors.departamento}
+              </p>
             )}
           </div>
-        </form>
-      </div>
-    </main>
+
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-slate-700">
+              Municipio
+            </label>
+            <select
+              name="municipio"
+              value={values.municipio}
+              onChange={handleChange}
+              className="block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 outline-none"
+            >
+              {municipios.map((mun) => (
+                <option key={mun} value={mun}>
+                  {mun}
+                </option>
+              ))}
+            </select>
+            {errors.municipio && (
+              <p className="mt-1 text-xs text-red-500">{errors.municipio}</p>
+            )}
+          </div>
+        </div>
+
+        {/* Error general */}
+        {formError && (
+          <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+            {formError}
+          </p>
+        )}
+
+        {/* Botones */}
+        <div className="flex justify-end">
+          <Button type="submit" fullWidth={false} disabled={loading}>
+            {loading ? "Creando cliente..." : "Crear cliente"}
+          </Button>
+        </div>
+      </form>
+    </section>
   );
-};
+}
