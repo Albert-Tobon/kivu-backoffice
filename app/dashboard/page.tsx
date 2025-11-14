@@ -1,3 +1,4 @@
+// app/dashboard/page.tsx
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -38,17 +39,17 @@ export default function DashboardPage() {
     setEditing(false);
   };
 
-  // Manejo botón ELIMINAR (incluye archivar en DocuSeal)
+  // Manejo botón ELIMINAR (DocuSeal + Alegra + local)
   const handleDelete = async (id: string) => {
     const confirmed = confirm(
-      "¿Seguro que quieres eliminar este cliente? Esto también archivará su contrato en DocuSeal."
+      "¿Seguro que quieres eliminar este cliente? Esto también archivará su contrato en DocuSeal e intentará eliminarlo en Alegra."
     );
     if (!confirmed) return;
 
     const clientToDelete = clients.find((c) => c.id === id);
 
-    // 1) Intentar archivar en DocuSeal (no bloquea el borrado local)
     if (clientToDelete) {
+      // 1) DocuSeal
       try {
         await fetch("/api/docuseal/submission", {
           method: "DELETE",
@@ -60,9 +61,22 @@ export default function DashboardPage() {
       } catch (err) {
         console.error("Error archivando submission en DocuSeal:", err);
       }
+
+      // 2) Alegra (solo si tenemos alegraId)
+      if (clientToDelete.alegraId) {
+        try {
+          await fetch("/api/alegra/contact", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ alegraId: clientToDelete.alegraId }),
+          });
+        } catch (err) {
+          console.error("Error eliminando contacto en Alegra:", err);
+        }
+      }
     }
 
-    // 2) Actualizar lista local
+    // 3) Actualizar lista local
     const newList = clients.filter((c) => c.id !== id);
     setClients(newList);
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(newList));
@@ -152,7 +166,7 @@ export default function DashboardPage() {
                         Ver
                       </Button>
 
-                      <Button
+                        <Button
                         variant="danger"
                         size="sm"
                         className="rounded-full bg-red-500 text-white hover:bg-red-600"

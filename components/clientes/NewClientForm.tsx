@@ -30,9 +30,6 @@ const emptyForm: NewClientFormValues = {
   municipio: "",
 };
 
-// misma clave que usamos en LoginForm para guardar el correo del usuario KIVU
-const LOGIN_EMAIL_KEY = "kivu:userEmail";
-
 const NewClientForm: React.FC = () => {
   const router = useRouter();
   const [form, setForm] = useState<NewClientFormValues>(emptyForm);
@@ -66,6 +63,7 @@ const NewClientForm: React.FC = () => {
     setLoading(true);
 
     try {
+      // 1) Guardar en localStorage (Backoffice)
       const stored = window.localStorage.getItem(STORAGE_KEY);
       const existing: Client[] = stored ? JSON.parse(stored) : [];
 
@@ -82,50 +80,59 @@ const NewClientForm: React.FC = () => {
         createdAt: new Date().toISOString(),
       };
 
-      // correo del usuario KIVU logueado (si lo guardaste en LoginForm)
-      const kivuEmail =
-        typeof window !== "undefined"
-          ? window.localStorage.getItem(LOGIN_EMAIL_KEY)
-          : null;
+      let newList: Client[] = [...existing, newClient];
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(newList));
 
-      // 1️⃣ llamar a API backend que integra con DocuSeal
+      // 2) Integración con DocuSeal
       try {
         const resp = await fetch("/api/docuseal/submission", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            client: newClient,
-            kivuEmail,
-          }),
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ client: newClient }),
         });
 
-        if (resp.ok) {
-          const data = await resp.json();
-          const submission = data?.submission;
-
-          // DocuSeal normalmente devuelve un "id" numérico; por si acaso, soportamos ambos
-          const submissionId =
-            submission?.id ?? submission?.submission_id ?? null;
-
-          if (submissionId != null) {
-            newClient.docusealSubmissionId = Number(submissionId);
-          }
-        } else {
+        if (!resp.ok) {
           console.error("Error DocuSeal:", resp.status, await resp.text());
         }
       } catch (error) {
         console.error("Error llamando a DocuSeal:", error);
       }
 
-      // 2️⃣ guardamos el cliente en localStorage (ya con docusealSubmissionId si existe)
-      const newList = [...existing, newClient];
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(newList));
+      // 3) Integración con Alegra
+      try {
+        const alegraResp = await fetch("/api/alegra/contact", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ client: newClient }),
+        });
 
+        if (!alegraResp.ok) {
+          console.error(
+            "Error Alegra:",
+            alegraResp.status,
+            await alegraResp.text()
+          );
+        } else {
+          const data = await alegraResp.json();
+          const alegraId = data?.alegraId as number | undefined;
+
+          if (alegraId) {
+            // Actualizar el cliente recién creado con el alegraId
+            newList = newList.map((c) =>
+              c.id === newClient.id ? { ...c, alegraId } : c
+            );
+            window.localStorage.setItem(STORAGE_KEY, JSON.stringify(newList));
+          }
+        }
+      } catch (error) {
+        console.error("Error llamando a Alegra:", error);
+      }
+
+      // 4) Volver al dashboard
       router.push("/dashboard");
     } catch (error) {
       console.error("Error guardando cliente:", error);
+    } finally {
       setLoading(false);
     }
   };
@@ -142,8 +149,8 @@ const NewClientForm: React.FC = () => {
               Nuevo cliente
             </h1>
             <p className="mt-1 text-sm text-slate-600">
-              Registra un cliente en KIVU. Más adelante este formulario creará
-              el cliente también en DocuSeal, MikroWISP y Alegra.
+              Registra un cliente en KIVU. Este formulario también creará el
+              cliente en DocuSeal y Alegra.
             </p>
           </header>
 
@@ -152,7 +159,7 @@ const NewClientForm: React.FC = () => {
               <Input
                 label="Nombre"
                 name="nombre"
-                placeholder="Ej: Albert"
+                placeholder="Ej: Yuli Angelica"
                 value={form.nombre}
                 onChange={handleChange}
                 error={errors.nombre}
@@ -160,7 +167,7 @@ const NewClientForm: React.FC = () => {
               <Input
                 label="Apellido"
                 name="apellido"
-                placeholder="Ej: Tobon"
+                placeholder="Ej: Espinel Lara"
                 value={form.apellido}
                 onChange={handleChange}
                 error={errors.apellido}

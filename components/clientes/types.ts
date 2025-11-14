@@ -14,6 +14,7 @@ export interface Client {
   municipio: string;
   createdAt: string;
 
-  // ID del submission creado en DocuSeal (si existe)
+  // Integraciones opcionales
   docusealSubmissionId?: number;
+  alegraId?: number; // <-- ID del contacto en Alegra
 }
