@@ -88,6 +88,18 @@ export default function DashboardPage() {
     }
   };
 
+  // Manejo botón CERRAR SESIÓN
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/logout", { method: "POST" });
+    } catch (err) {
+      console.error("Error cerrando sesión:", err);
+    } finally {
+      // Redirigir siempre al login
+      window.location.href = "/login";
+    }
+  };
+
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-8">
       <div className="mx-auto flex max-w-6xl flex-col gap-6">
@@ -106,11 +118,20 @@ export default function DashboardPage() {
             </p>
           </div>
 
-          <Link href="/clientes/nuevo">
-            <Button className="rounded-full px-5 shadow-md shadow-[#ACF227]/40">
-              + Nuevo cliente
+          <div className="flex items-center gap-3">
+            <Link href="/clientes/nuevo">
+              <Button className="rounded-full px-5 shadow-md shadow-[#ACF227]/40">
+                + Nuevo cliente
+              </Button>
+            </Link>
+
+            <Button
+              className="rounded-full bg-slate-800 px-4 text-white hover:bg-slate-900"
+              onClick={handleLogout}
+            >
+              Cerrar sesión
             </Button>
-          </Link>
+          </div>
         </header>
 
         {/* Tabla de clientes */}
@@ -166,7 +187,7 @@ export default function DashboardPage() {
                         Ver
                       </Button>
 
-                        <Button
+                      <Button
                         variant="danger"
                         size="sm"
                         className="rounded-full bg-red-500 text-white hover:bg-red-600"
