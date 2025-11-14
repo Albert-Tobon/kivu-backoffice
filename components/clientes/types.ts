@@ -12,5 +12,8 @@ export interface Client {
   direccion: string;
   departamento: string;
   municipio: string;
-  createdAt: string; // ISO string
+  createdAt: string;
+
+  // ID del submission creado en DocuSeal (si existe)
+  docusealSubmissionId?: number;
 }

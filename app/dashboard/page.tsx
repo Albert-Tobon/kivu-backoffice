@@ -1,4 +1,3 @@
-// app/dashboard/page.tsx
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -14,7 +13,10 @@ export default function DashboardPage() {
   const [showDetails, setShowDetails] = useState(false);
   const [editing, setEditing] = useState(false);
 
+  // Cargar clientes desde localStorage
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
     const stored = window.localStorage.getItem(STORAGE_KEY);
     if (stored) {
       try {
@@ -25,19 +27,42 @@ export default function DashboardPage() {
     }
   }, []);
 
+  // Cliente seleccionado (objeto completo)
   const selectedClient =
-    clients.find((c) => c.id === selectedClientId) || null;
+    clients.find((c) => c.id === selectedClientId) ?? null;
 
+  // Manejo botón VER
   const handleView = (id: string) => {
     setSelectedClientId(id);
     setShowDetails(true);
     setEditing(false);
   };
 
-  const handleDelete = (id: string) => {
-    const confirmed = confirm("¿Seguro que quieres eliminar este cliente?");
+  // Manejo botón ELIMINAR (incluye archivar en DocuSeal)
+  const handleDelete = async (id: string) => {
+    const confirmed = confirm(
+      "¿Seguro que quieres eliminar este cliente? Esto también archivará su contrato en DocuSeal."
+    );
     if (!confirmed) return;
 
+    const clientToDelete = clients.find((c) => c.id === id);
+
+    // 1) Intentar archivar en DocuSeal (no bloquea el borrado local)
+    if (clientToDelete) {
+      try {
+        await fetch("/api/docuseal/submission", {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ clientId: clientToDelete.id }),
+        });
+      } catch (err) {
+        console.error("Error archivando submission en DocuSeal:", err);
+      }
+    }
+
+    // 2) Actualizar lista local
     const newList = clients.filter((c) => c.id !== id);
     setClients(newList);
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(newList));
@@ -45,37 +70,38 @@ export default function DashboardPage() {
     if (selectedClientId === id) {
       setSelectedClientId(null);
       setShowDetails(false);
+      setEditing(false);
     }
   };
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-10">
-      <div className="mx-auto max-w-6xl space-y-6">
-        {/* Header */}
-        <header className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+    <main className="min-h-screen bg-slate-50 px-4 py-8">
+      <div className="mx-auto flex max-w-6xl flex-col gap-6">
+        {/* Encabezado */}
+        <header className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
           <div>
-            <span className="inline-flex items-center rounded-full bg-[#ACF227]/10 px-3 py-1 text-xs font-semibold text-[#ACF227] ring-1 ring-[#ACF227]/40">
+            <span className="inline-flex items-center rounded-full bg-[#ACF227]/10 px-3 py-1 text-xs font-semibold text-[#4c5a00] ring-1 ring-[#ACF227]/60">
               Backoffice KIVU
             </span>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">
+            <h1 className="mt-3 text-2xl font-bold text-slate-900">
               Gestión de clientes
             </h1>
-            <p className="mt-2 max-w-xl text-sm text-slate-600">
+            <p className="mt-1 text-sm text-slate-600">
               Administra tus clientes, edita su información y mantén tu
               operación sincronizada con tus sistemas.
             </p>
           </div>
 
           <Link href="/clientes/nuevo">
-            <Button className="rounded-full px-5 py-2 text-sm font-semibold shadow-md shadow-[#ACF227]/40">
+            <Button className="rounded-full px-5 shadow-md shadow-[#ACF227]/40">
               + Nuevo cliente
             </Button>
           </Link>
         </header>
 
-        {/* Tabla */}
+        {/* Tabla de clientes */}
         <section className="overflow-hidden rounded-2xl bg-white shadow-lg ring-1 ring-slate-200">
-          <table className="min-w-full divide-y divide-slate-200">
+          <table className="min-w-full divide-y divide-slate-200 text-sm">
             <thead className="bg-slate-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -93,80 +119,78 @@ export default function DashboardPage() {
                 <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Fecha
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Acciones
                 </th>
               </tr>
             </thead>
 
-            <tbody className="divide-y divide-slate-200 bg-white">
-              {clients.length === 0 ? (
+            <tbody className="divide-y divide-slate-100">
+              {clients.map((c) => (
+                <tr
+                  key={c.id}
+                  className="hover:bg-slate-50/80 transition-colors"
+                >
+                  <td className="px-6 py-3 font-medium text-slate-900">
+                    {c.nombre} {c.apellido}
+                  </td>
+                  <td className="px-6 py-3 text-slate-700">{c.cedula}</td>
+                  <td className="px-6 py-3 text-slate-700">{c.correo}</td>
+                  <td className="px-6 py-3 text-slate-700">{c.telefono}</td>
+                  <td className="px-6 py-3 text-slate-500 text-xs">
+                    {new Date(c.createdAt).toLocaleDateString("es-CO")}
+                  </td>
+
+                  <td className="px-6 py-3">
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        className="rounded-full bg-[#ACF227] text-slate-900 hover:bg-[#bdfb39]"
+                        onClick={() => handleView(c.id)}
+                      >
+                        Ver
+                      </Button>
+
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        className="rounded-full bg-red-500 text-white hover:bg-red-600"
+                        onClick={() => handleDelete(c.id)}
+                      >
+                        Eliminar
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+
+              {clients.length === 0 && (
                 <tr>
                   <td
                     colSpan={6}
-                    className="px-6 py-6 text-center text-sm text-slate-500"
+                    className="px-6 py-10 text-center text-sm text-slate-500"
                   >
-                    No hay clientes registrados. Crea uno nuevo para comenzar.
+                    Todavía no tienes clientes registrados. Crea el primero con
+                    el botón &quot;Nuevo cliente&quot;.
                   </td>
                 </tr>
-              ) : (
-                clients.map((c) => (
-                  <tr
-                    key={c.id}
-                    className="transition hover:bg-slate-50"
-                  >
-                    <td className="px-6 py-4 text-sm font-medium text-slate-900">
-                      {c.nombre} {c.apellido}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-700">
-                      {c.cedula}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-700">
-                      {c.correo}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-700">
-                      {c.telefono}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-700">
-                      {new Date(c.createdAt).toLocaleDateString("es-CO")}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          size="sm"
-                          className="rounded-full text-xs font-semibold"
-                          onClick={() => handleView(c.id)}
-                        >
-                          Ver
-                        </Button>
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          className="rounded-full text-xs font-semibold"
-                          onClick={() => handleDelete(c.id)}
-                        >
-                          Eliminar
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
               )}
             </tbody>
           </table>
         </section>
 
         {/* Mensaje inicial */}
-        {!showDetails && (
-          <section className="rounded-2xl bg-white p-6 text-center text-sm text-slate-600 shadow-md ring-1 ring-slate-200">
+        {!showDetails && !editing && clients.length > 0 && (
+          <div className="rounded-2xl bg-white p-6 text-center text-slate-600 shadow-md ring-1 ring-slate-200">
             Selecciona un cliente de la tabla para ver sus detalles o editarlo.
-          </section>
+          </div>
         )}
 
         {/* Detalle del cliente */}
         {showDetails && selectedClient && !editing && (
           <section className="rounded-2xl bg-white p-6 shadow-md ring-1 ring-slate-200">
-            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+            <div className="flex items-center justify-between gap-4">
               <div>
                 <h2 className="text-xl font-semibold text-slate-900">
                   Detalle del cliente
@@ -176,73 +200,65 @@ export default function DashboardPage() {
                 </p>
               </div>
               <Button
-                className="rounded-full px-4 py-2 text-sm font-semibold"
-                onClick={() => setEditing(true)} // 🔧 AQUÍ SE ARREGLA
+                className="rounded-full bg-[#ACF227] px-5 text-slate-900 hover:bg-[#bdfb39]"
+                onClick={() => setEditing(true)}
               >
                 Editar cliente
               </Button>
             </div>
 
             <div className="mt-6 grid gap-6 md:grid-cols-2">
-              <div className="space-y-1">
+              <div>
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Nombre completo
                 </h4>
-                <p className="text-sm text-slate-900">
+                <p className="mt-1 font-medium text-slate-900">
                   {selectedClient.nombre} {selectedClient.apellido}
                 </p>
               </div>
 
-              <div className="space-y-1">
+              <div>
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Cédula
                 </h4>
-                <p className="text-sm text-slate-900">
-                  {selectedClient.cedula}
-                </p>
+                <p className="mt-1 text-slate-900">{selectedClient.cedula}</p>
               </div>
 
-              <div className="space-y-1">
+              <div>
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Correo
                 </h4>
-                <p className="text-sm text-slate-900">
-                  {selectedClient.correo}
-                </p>
+                <p className="mt-1 text-slate-900">{selectedClient.correo}</p>
               </div>
 
-              <div className="space-y-1">
+              <div>
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Teléfono
                 </h4>
-                <p className="text-sm text-slate-900">
-                  {selectedClient.telefono}
-                </p>
+                <p className="mt-1 text-slate-900">{selectedClient.telefono}</p>
               </div>
 
-              <div className="space-y-1">
+              <div>
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Departamento
                 </h4>
-                <p className="text-sm text-slate-900">
+                <p className="mt-1 text-slate-900">
                   {selectedClient.departamento}
                 </p>
               </div>
 
-              <div className="space-y-1">
+              <div>
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Municipio
                 </h4>
-                <p className="text-sm text-slate-900">
-                  {selectedClient.municipio}
-                </p>
+                <p className="mt-1 text-slate-900">{selectedClient.municipio}</p>
               </div>
 
-              <div className="space-y-1 md:col-span-2">
+              <div className="md:col-span-2">
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Dirección
                 </h4>
-                <p className="text-sm text-slate-900">
+                <p className="mt-1 text-slate-900">
                   {selectedClient.direccion}
                 </p>
               </div>

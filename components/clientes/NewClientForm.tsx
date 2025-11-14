@@ -30,7 +30,7 @@ const emptyForm: NewClientFormValues = {
   municipio: "",
 };
 
-// misma clave que usamos en LoginForm
+// misma clave que usamos en LoginForm para guardar el correo del usuario KIVU
 const LOGIN_EMAIL_KEY = "kivu:userEmail";
 
 const NewClientForm: React.FC = () => {
@@ -82,30 +82,46 @@ const NewClientForm: React.FC = () => {
         createdAt: new Date().toISOString(),
       };
 
-      const newList = [...existing, newClient];
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(newList));
-
-      // 👇 leer correo del usuario KIVU logueado
+      // correo del usuario KIVU logueado (si lo guardaste en LoginForm)
       const kivuEmail =
         typeof window !== "undefined"
           ? window.localStorage.getItem(LOGIN_EMAIL_KEY)
           : null;
 
-      // 👇 llamar a API backend que integra con DocuSeal
+      // 1️⃣ llamar a API backend que integra con DocuSeal
       try {
-        await fetch("/api/docuseal/submission", {
+        const resp = await fetch("/api/docuseal/submission", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
             client: newClient,
-            kivuEmail, // se lo mandamos al backend
+            kivuEmail,
           }),
         });
+
+        if (resp.ok) {
+          const data = await resp.json();
+          const submission = data?.submission;
+
+          // DocuSeal normalmente devuelve un "id" numérico; por si acaso, soportamos ambos
+          const submissionId =
+            submission?.id ?? submission?.submission_id ?? null;
+
+          if (submissionId != null) {
+            newClient.docusealSubmissionId = Number(submissionId);
+          }
+        } else {
+          console.error("Error DocuSeal:", resp.status, await resp.text());
+        }
       } catch (error) {
         console.error("Error llamando a DocuSeal:", error);
       }
+
+      // 2️⃣ guardamos el cliente en localStorage (ya con docusealSubmissionId si existe)
+      const newList = [...existing, newClient];
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(newList));
 
       router.push("/dashboard");
     } catch (error) {
