@@ -3,7 +3,7 @@
 export const STORAGE_KEY = "kivuClients";
 
 export interface Client {
-  id: string;
+  id: string; // id interno del backoffice (para React / localStorage)
   nombre: string;
   apellido: string;
   cedula: string;
@@ -14,7 +14,9 @@ export interface Client {
   municipio: string;
   createdAt: string;
 
-  // Integraciones opcionales
+  // ID del submission creado en DocuSeal (si existe)
   docusealSubmissionId?: number;
-  alegraId?: number; // <-- ID del contacto en Alegra
+
+  // ID real del contacto en Alegra
+  alegraId?: number;
 }
