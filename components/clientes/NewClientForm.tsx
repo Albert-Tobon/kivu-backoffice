@@ -142,18 +142,24 @@ const NewClientForm: React.FC = () => {
           body: JSON.stringify({ client: newClient }),
         });
 
-        if (mwResp.ok) {
-          const data = await mwResp.json();
-          const microwispId = data?.microwispId as number | undefined;
+        const text = await mwResp.text();
+        let data: any = null;
+        try {
+          data = text ? JSON.parse(text) : null;
+        } catch {
+          data = null;
+        }
 
+        if (!mwResp.ok || !data?.ok) {
+          console.error("Error Mikrowisp:", mwResp.status, text);
+        } else {
+          const microwispId = data?.microwispId as number | undefined;
           if (microwispId) {
             newList = newList.map((c) =>
               c.id === newClient.id ? { ...c, microwispId } : c
             );
             window.localStorage.setItem(STORAGE_KEY, JSON.stringify(newList));
           }
-        } else {
-          console.error("Error Mikrowisp:", mwResp.status, await mwResp.text());
         }
       } catch (error) {
         console.error("Error llamando a Mikrowisp:", error);
