@@ -14,9 +14,12 @@ export interface Client {
   municipio: string;
   createdAt: string;
 
-  // ID del submission creado en DocuSeal (si existe)
+  // ID del envío de documentos en Docuseal
   docusealSubmissionId?: number;
 
   // ID real del contacto en Alegra
   alegraId?: number;
+
+  // ID real del cliente en Mikrowisp
+  microwispId?: number;
 }

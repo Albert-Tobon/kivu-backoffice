@@ -1,48 +1,42 @@
+// app/api/microwisp/client/route.ts
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
-  // 👀 Debug de variables de entorno
-  console.log("ENV CHECK MIKROWISP:", {
-    url: process.env.MIKROWISP_NEW_CLIENT_URL,
-    token: process.env.MIKROWISP_API_TOKEN ? "OK" : "MISSING",
-  });
-
   try {
     const body = await req.json();
     const client = body?.client;
 
+    // Validación mínima
     if (!client) {
       return NextResponse.json(
-        { error: "Falta 'client' en el cuerpo de la petición" },
+        { ok: false, error: "Falta 'client' en el cuerpo de la petición" },
         { status: 400 }
       );
     }
 
-    const newClientUrl = process.env.MIKROWISP_NEW_CLIENT_URL;
-    const apiToken = process.env.MIKROWISP_API_TOKEN;
+    const url = process.env.MIKROWISP_NEW_USER_URL;
+    const token = process.env.MIKROWISP_API_TOKEN;
 
-    if (!newClientUrl || !apiToken) {
-      console.error("Faltan variables de entorno Mikrowisp");
+    // Si no hay config, respondemos 500 y listo
+    if (!url || !token) {
       return NextResponse.json(
-        { error: "Configuración Mikrowisp incompleta en el servidor" },
+        { ok: false, error: "Configuración Mikrowisp incompleta en el servidor" },
         { status: 500 }
       );
     }
 
-    // Mapear tu cliente al formato que pide la API de Mikrowisp
+    // Payload EXACTO como la documentación de NewUser
     const payload = {
-      token: apiToken,
-      nombre: `${client.nombre} ${client.apellido}`.trim(),
+      token,
+      nombre: `${client.nombre ?? ""} ${client.apellido ?? ""}`.trim() || client.nombre,
       cedula: client.cedula,
       correo: client.correo,
-      telefono: "", // si no manejas fijo puedes dejar vacío
+      telefono: client.telefonoFijo ?? "", // si no manejas fijo, puedes dejar ""
       movil: client.telefono,
       direccion_principal: client.direccion,
     };
 
-    console.log("Enviando a Mikrowisp:", { url: newClientUrl, payload });
-
-    const resp = await fetch(newClientUrl, {
+    const resp = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -51,43 +45,40 @@ export async function POST(req: NextRequest) {
     });
 
     const text = await resp.text();
-    let json: any = null;
-
+    let data: any = null;
     try {
-      json = text ? JSON.parse(text) : null;
+      data = text ? JSON.parse(text) : null;
     } catch {
-      // si no es JSON no pasa nada, guardamos raw
+      // si no es JSON, dejamos data en null
     }
 
-    console.log("Respuesta Mikrowisp:", resp.status, json ?? text);
-
+    // Si Mikrowisp responde con HTTP de error, lo pasamos tal cual
     if (!resp.ok) {
-      console.error("Error Mikrowisp:", resp.status, text);
       return NextResponse.json(
         {
-          error: "Error al crear el cliente en Mikrowisp",
+          ok: false,
           status: resp.status,
-          raw: json ?? text,
+          raw: data ?? text,
         },
         { status: resp.status }
       );
     }
 
-    // Si la API devuelve algún ID del usuario, intenta leerlo aquí
-    const microwispId =
-      json?.id ?? json?.idcliente ?? json?.cliente_id ?? json?.data?.id;
+    // Intentamos leer el idcliente (si viene)
+    const microwispId = data?.idcliente ?? null;
 
     return NextResponse.json(
       {
+        ok: true,
         microwispId,
-        raw: json ?? text,
+        raw: data ?? text,
       },
       { status: 200 }
     );
   } catch (error) {
     console.error("Error en handler Mikrowisp:", error);
     return NextResponse.json(
-      { error: "Error interno en la integración Mikrowisp" },
+      { ok: false, error: "Error interno en la integración Mikrowisp" },
       { status: 500 }
     );
   }
