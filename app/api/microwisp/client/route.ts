@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
+  // 👀 Debug de variables de entorno
+  console.log("ENV CHECK MIKROWISP:", {
+    url: process.env.MIKROWISP_NEW_CLIENT_URL,
+    token: process.env.MIKROWISP_API_TOKEN ? "OK" : "MISSING",
+  });
+
   try {
     const body = await req.json();
     const client = body?.client;
@@ -34,6 +40,8 @@ export async function POST(req: NextRequest) {
       direccion_principal: client.direccion,
     };
 
+    console.log("Enviando a Mikrowisp:", { url: newClientUrl, payload });
+
     const resp = await fetch(newClientUrl, {
       method: "POST",
       headers: {
@@ -51,13 +59,15 @@ export async function POST(req: NextRequest) {
       // si no es JSON no pasa nada, guardamos raw
     }
 
+    console.log("Respuesta Mikrowisp:", resp.status, json ?? text);
+
     if (!resp.ok) {
       console.error("Error Mikrowisp:", resp.status, text);
       return NextResponse.json(
         {
           error: "Error al crear el cliente en Mikrowisp",
           status: resp.status,
-          raw: text,
+          raw: json ?? text,
         },
         { status: resp.status }
       );
