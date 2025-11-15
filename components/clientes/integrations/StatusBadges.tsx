@@ -1,7 +1,13 @@
-// components/integrations/StatusBadges.tsx
+// components/.../StatusBadges.tsx
 "use client";
 
 import React, { useEffect, useState } from "react";
+
+// ⬇️ IMPORTANTE: ruta relativa según dónde tengas StatusBadges
+// Si StatusBadges está en: components/clientes/integrations/StatusBadges.tsx
+// y useIntegrationSettings en: components/integrations/useIntegrationSettings.tsx
+// entonces esta ruta es correcta:
+import { useIntegrationSettings } from "@/app/api/integrations/status/useIntegrationSettings";
 
 type StatusValue = "ok" | "error";
 type IntegrationStatus = { status: StatusValue; message?: string };
@@ -12,13 +18,13 @@ interface ApiResponse {
   mikrowisp: IntegrationStatus;
 }
 
-type Variant = "loading" | "ok" | "config" | "down";
+// añadimos "off" como estado visual
+type Variant = "loading" | "ok" | "config" | "down" | "off";
 
 function resolveVariant(s?: IntegrationStatus): Variant {
   if (!s) return "loading";
   if (s.status === "ok") return "ok";
 
-  // Si el mensaje habla de config/credenciales, lo marcamos como "en configuración"
   const msg = (s.message ?? "").toLowerCase();
   if (
     msg.includes("config") ||
@@ -65,6 +71,15 @@ function Badge({
     );
   }
 
+  if (variant === "off") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500 ring-1 ring-slate-200">
+        <span className="h-2 w-2 rounded-full bg-slate-400" />
+        {label} desactivado
+      </span>
+    );
+  }
+
   // down
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700 ring-1 ring-red-200">
@@ -77,6 +92,9 @@ function Badge({
 export default function StatusBadges() {
   const [data, setData] = useState<ApiResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // switches ON/OFF desde Dashboard (localStorage)
+  const { settings, ready } = useIntegrationSettings();
 
   useEffect(() => {
     let cancelled = false;
@@ -101,15 +119,29 @@ export default function StatusBadges() {
     }
 
     load();
-
     return () => {
       cancelled = true;
     };
   }, []);
 
-  const alegraVariant = resolveVariant(data?.alegra);
-  const docusealVariant = resolveVariant(data?.docuseal);
-  const mikrowispVariant = resolveVariant(data?.mikrowisp);
+  // Mientras no sepamos los switches, mostramos "loading"
+  const alegraVariant: Variant = !ready
+    ? "loading"
+    : settings.alegra
+    ? resolveVariant(data?.alegra)
+    : "off";
+
+  const docusealVariant: Variant = !ready
+    ? "loading"
+    : settings.docuseal
+    ? resolveVariant(data?.docuseal)
+    : "off";
+
+  const mikrowispVariant: Variant = !ready
+    ? "loading"
+    : settings.mikrowisp
+    ? resolveVariant(data?.mikrowisp)
+    : "off";
 
   return (
     <div className="flex flex-wrap gap-2 text-xs">

@@ -8,6 +8,9 @@ import EditClientForm from "../../components/clientes/EditClientForm";
 import type { Client } from "../../components/clientes/types";
 import { STORAGE_KEY } from "../../components/clientes/types";
 
+// 👇 NUEVO: importamos los toggles de integraciones
+import IntegrationToggles from "../api/integrations/status/IntegrationToggles";
+
 type SortMode = "date-desc" | "name-asc" | "name-desc";
 
 export default function DashboardPage() {
@@ -242,7 +245,7 @@ export default function DashboardPage() {
               )}
             </div>
 
-            {/* Selector de orden */}
+            {/* Selector de orden + acciones */}
             <div className="flex items-center gap-2">
               <select
                 value={sortMode}
@@ -269,6 +272,9 @@ export default function DashboardPage() {
             </div>
           </div>
         </header>
+
+        {/* 👇 NUEVO: bloque de estado / toggles de integraciones */}
+        <IntegrationToggles />
 
         {/* Tabla de clientes + detalle inline */}
         <section className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
