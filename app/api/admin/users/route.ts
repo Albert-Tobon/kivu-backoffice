@@ -60,7 +60,7 @@ export async function PUT(req: NextRequest) {
 
   const { id, role, isActive } = body;
 
-  // No permitir que el admin se desactive o cambie su propio rol
+  // No permitir que el admin se desactive o cambie su propio rol // // // 
   const sessionUserId = session.user?.id as string | undefined;
 
   if (sessionUserId && sessionUserId === id) {
