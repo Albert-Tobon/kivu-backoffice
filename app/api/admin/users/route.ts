@@ -4,25 +4,21 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-async function requireAdmin() {
+// Solo ADMIN puede ver usuarios
+export async function GET() {
   const session = await getServerSession(authOptions);
 
-  if (!session?.user || session.user.role !== "ADMIN") {
-    return null;
+  if (!session || !session.user || !session.user.email) {
+    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
   }
 
-  return session;
-}
-
-// GET /api/admin/users
-export async function GET() {
-  const session = await requireAdmin();
-  if (!session) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const role = (session.user.role as string) ?? "OPERATOR";
+  if (role !== "ADMIN") {
+    return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
 
   const users = await prisma.user.findMany({
-    orderBy: { createdAt: "desc" },
+    orderBy: { createdAt: "asc" },
     select: {
       id: true,
       name: true,
@@ -33,24 +29,27 @@ export async function GET() {
     },
   });
 
-  return NextResponse.json({
-    ok: true,
-    users: users.map((u) => ({
-      ...u,
-      createdAt: u.createdAt.toISOString(),
-    })),
-  });
+  return NextResponse.json({ ok: true, users });
 }
 
-// PUT /api/admin/users
-// Body: { id: string; role?: "ADMIN" | "OPERATOR"; isActive?: boolean }
+// Actualizar rol / estado de un usuario (solo ADMIN)
 export async function PUT(req: NextRequest) {
-  const session = await requireAdmin();
-  if (!session) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const session = await getServerSession(authOptions);
+
+  if (!session || !session.user || !session.user.email) {
+    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
   }
 
-  const body = await req.json().catch(() => null);
+  const currentRole = (session.user.role as string) ?? "OPERATOR";
+  if (currentRole !== "ADMIN") {
+    return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  }
+
+  const body = await req.json().catch(() => null) as {
+    id?: string;
+    role?: string;
+    isActive?: boolean;
+  } | null;
 
   if (!body?.id) {
     return NextResponse.json(
@@ -59,21 +58,20 @@ export async function PUT(req: NextRequest) {
     );
   }
 
-  const { id, role, isActive } = body as {
-    id: string;
-    role?: "ADMIN" | "OPERATOR";
-    isActive?: boolean;
-  };
+  const { id, role, isActive } = body;
 
   // No permitir que el admin se desactive o cambie su propio rol
-  if (session.user.id === id) {
+  const sessionUserId = session.user.id as string | undefined;
+
+  if (sessionUserId && sessionUserId === id) {
     if (role && role !== "ADMIN") {
       return NextResponse.json(
         { error: "No puedes cambiar tu propio rol a no ADMIN" },
         { status: 400 }
       );
     }
-    if (typeof isActive === "boolean" && isActive === false) {
+
+    if (typeof isActive === "boolean" && !isActive) {
       return NextResponse.json(
         { error: "No puedes desactivar tu propio usuario" },
         { status: 400 }
@@ -81,20 +79,12 @@ export async function PUT(req: NextRequest) {
     }
   }
 
-  const data: any = {};
-  if (role) data.role = role;
-  if (typeof isActive === "boolean") data.isActive = isActive;
-
-  if (Object.keys(data).length === 0) {
-    return NextResponse.json(
-      { error: "No hay cambios para aplicar" },
-      { status: 400 }
-    );
-  }
-
-  const updated = await prisma.user.update({
+  const updatedUser = await prisma.user.update({
     where: { id },
-    data,
+    data: {
+      role: role ?? undefined,
+      isActive: typeof isActive === "boolean" ? isActive : undefined,
+    },
     select: {
       id: true,
       name: true,
@@ -105,8 +95,5 @@ export async function PUT(req: NextRequest) {
     },
   });
 
-  return NextResponse.json({
-    ok: true,
-    user: { ...updated, createdAt: updated.createdAt.toISOString() },
-  });
+  return NextResponse.json({ ok: true, user: updatedUser });
 }
