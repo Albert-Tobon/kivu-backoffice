@@ -1,3 +1,4 @@
+// app/api/alegra/contacts/check/route.ts
 import { NextRequest, NextResponse } from "next/server";
 
 const ALEGRA_USER = process.env.ALEGRA_USER;
@@ -16,8 +17,8 @@ export async function POST(req: NextRequest) {
   try {
     const { cedula, correo } = await req.json();
 
-    const cedulaTrim = (cedula || "").trim();
-    const correoTrim = (correo || "").trim();
+    const cedulaTrim = typeof cedula === "string" ? cedula.trim() : "";
+    const correoTrim = typeof correo === "string" ? correo.trim() : "";
 
     if (!cedulaTrim && !correoTrim) {
       return NextResponse.json(
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 1) Construimos URL con query (usamos lo que tengamos: cédula o correo)
+    // 1) Construimos URL con query (cedula o correo, el que venga primero)
     const searchValue = cedulaTrim || correoTrim;
     const url = new URL(`${ALEGRA_BASE_URL}/contacts`);
     url.searchParams.set("metadata", "true");
@@ -67,13 +68,11 @@ export async function POST(req: NextRequest) {
     }
 
     const json = await alegraRes.json();
-
-    // Alegra puede devolver { data: [...], metadata: {...} } o solo [...]
     const lista = Array.isArray(json) ? json : json?.data;
 
     let match: any = null;
-    let existsByCedula = false;
-    let existsByCorreo = false;
+    let matchByCedula = false;
+    let matchByCorreo = false;
 
     if (Array.isArray(lista)) {
       for (const c of lista) {
@@ -89,10 +88,9 @@ export async function POST(req: NextRequest) {
 
         if (cedulaMatch || correoMatch) {
           match = c;
-          if (cedulaMatch) existsByCedula = true;
-          if (correoMatch) existsByCorreo = true;
-          // No rompemos el loop para acumular flags,
-          // pero el "match" nos sirve para log y retorno.
+          matchByCedula = cedulaMatch;
+          matchByCorreo = correoMatch;
+          break;
         }
       }
     }
@@ -103,8 +101,8 @@ export async function POST(req: NextRequest) {
         name: match.name,
         identification: match.identification,
         email: match.email,
-        matchByCedula: existsByCedula,
-        matchByCorreo: existsByCorreo,
+        matchByCedula,
+        matchByCorreo,
       });
     } else {
       console.log(
@@ -115,9 +113,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       exists: !!match,
-      existsByCedula,
-      existsByCorreo,
       contact: match ?? null,
+      matchByCedula,
+      matchByCorreo,
     });
   } catch (error) {
     console.error("[/api/alegra/check] Error inesperado:", error);

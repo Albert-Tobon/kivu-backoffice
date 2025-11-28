@@ -1,3 +1,4 @@
+// components/clientes/NewClientForm.tsx
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -19,6 +20,7 @@ interface NewClientFormValues {
 }
 
 type FieldStatus = "idle" | "checking" | "exists" | "not-found" | "error";
+type DocuSealStatus = FieldStatus;
 
 // Valores fijos / automáticos
 const DEFAULT_DEPARTAMENTO = "Cundinamarca";
@@ -43,7 +45,7 @@ const NewClientForm: React.FC = () => {
   >({});
   const [loading, setLoading] = useState(false);
 
-  // Alegra por campo
+  // Alegra: estado por campo (cédula y correo independientes)
   const [alegraCedulaStatus, setAlegraCedulaStatus] =
     useState<FieldStatus>("idle");
   const [alegraCedulaMessage, setAlegraCedulaMessage] = useState<
@@ -56,12 +58,12 @@ const NewClientForm: React.FC = () => {
     string | null
   >(null);
 
-  // DocuSeal (solo por correo)
-  const [docuStatus, setDocuStatus] = useState<FieldStatus>("idle");
+  // DocuSeal (por correo)
+  const [docuStatus, setDocuStatus] = useState<DocuSealStatus>("idle");
   const [docuMessage, setDocuMessage] = useState<string | null>(null);
 
-  // Placeholder para Mikrowisp (por ahora no llamamos API)
-  const [microwispCorreoStatus] = useState<FieldStatus>("idle");
+  // FUTURO: Mikrowisp
+  // const [mwStatus, setMwStatus] = useState<FieldStatus>("idle");
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -75,28 +77,29 @@ const NewClientForm: React.FC = () => {
     if (!form.cedula.trim()) newErrors.cedula = "La cédula es obligatoria";
     if (!form.correo.trim()) newErrors.correo = "El correo es obligatorio";
     if (!form.nombre.trim()) newErrors.nombre = "El nombre es obligatorio";
-    if (!form.apellido.trim())
-      newErrors.apellido = "El apellido es obligatorio";
+    if (!form.apellido.trim()) newErrors.apellido = "El apellido es obligatorio";
 
-    // Bloqueo si Alegra tiene coincidencia por cédula o correo
-    if (
-      alegraCedulaStatus === "exists" ||
-      alegraCorreoStatus === "exists"
-    ) {
+    // Si Alegra dice que ya existe, bloqueamos según el campo
+    if (alegraCedulaStatus === "exists") {
       newErrors.cedula =
-        "Este cliente ya está registrado en Alegra. Revisa la información antes de crear un duplicado.";
+        "Este cliente ya está registrado en Alegra. Coincidencia por cédula.";
+    } else if (alegraCorreoStatus === "exists") {
+      newErrors.correo = "Este correo ya está registrado en Alegra.";
     }
+
+    // DocuSeal sigue siendo informativo (no bloquea), pero podrías activar esto:
+    /*
+    if (docuStatus === "exists") {
+      newErrors.correo =
+        "Este correo ya tiene documentos en DocuSeal. Revisa antes de crear un nuevo cliente.";
+    }
+    */
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  /**
-   * Validación en tiempo real contra ALEGRA (un solo llamado),
-   * pero actualizando estados independientes para:
-   *  - cédula
-   *  - correo
-   */
+  // ---- Validación en tiempo real contra Alegra (cédula / correo) ----
   useEffect(() => {
     const cedula = form.cedula.trim();
     const correo = form.correo.trim();
@@ -106,15 +109,20 @@ const NewClientForm: React.FC = () => {
       setAlegraCedulaMessage(null);
       setAlegraCorreoStatus("idle");
       setAlegraCorreoMessage(null);
+      setErrors((prev) => ({
+        ...prev,
+        cedula: undefined,
+        correo: undefined,
+      }));
       return;
     }
 
     let cancelled = false;
 
     setAlegraCedulaStatus(cedula ? "checking" : "idle");
-    setAlegraCedulaMessage(cedula ? "Validando cédula en Alegra..." : null);
     setAlegraCorreoStatus(correo ? "checking" : "idle");
-    setAlegraCorreoMessage(correo ? "Validando correo en Alegra..." : null);
+    if (cedula) setAlegraCedulaMessage("Validando cédula en Alegra...");
+    if (correo) setAlegraCorreoMessage("Validando correo en Alegra...");
 
     const timeoutId = setTimeout(async () => {
       try {
@@ -134,6 +142,7 @@ const NewClientForm: React.FC = () => {
             "body=",
             text
           );
+
           if (cedula) {
             setAlegraCedulaStatus("error");
             setAlegraCedulaMessage("No se pudo validar la cédula en Alegra.");
@@ -141,6 +150,7 @@ const NewClientForm: React.FC = () => {
             setAlegraCedulaStatus("idle");
             setAlegraCedulaMessage(null);
           }
+
           if (correo) {
             setAlegraCorreoStatus("error");
             setAlegraCorreoMessage("No se pudo validar el correo en Alegra.");
@@ -148,24 +158,19 @@ const NewClientForm: React.FC = () => {
             setAlegraCorreoStatus("idle");
             setAlegraCorreoMessage(null);
           }
+
           return;
         }
 
         const data = await res.json();
 
-        // Flags del backend
-        const existsByCedula =
-          typeof data.existsByCedula === "boolean"
-            ? data.existsByCedula
-            : false;
-        const existsByCorreo =
-          typeof data.existsByCorreo === "boolean"
-            ? data.existsByCorreo
-            : false;
+        const exists: boolean = !!data.exists;
+        const matchByCedula: boolean = !!data.matchByCedula;
+        const matchByCorreo: boolean = !!data.matchByCorreo;
 
         // CÉDULA
         if (cedula) {
-          if (existsByCedula) {
+          if (exists && matchByCedula) {
             setAlegraCedulaStatus("exists");
             setAlegraCedulaMessage(
               "Este cliente ya está registrado en Alegra. Coincidencia por cédula."
@@ -181,10 +186,8 @@ const NewClientForm: React.FC = () => {
 
         // CORREO
         if (correo) {
-          if (existsByCorreo) {
+          if (exists && matchByCorreo) {
             setAlegraCorreoStatus("exists");
-            // El texto concreto lo construiremos en el mensaje unificado de correo;
-            // aquí dejamos algo genérico por si se quiere mostrar solo Alegra.
             setAlegraCorreoMessage(
               "Este correo ya está registrado en Alegra."
             );
@@ -198,22 +201,18 @@ const NewClientForm: React.FC = () => {
         }
       } catch (error) {
         if (cancelled) return;
-        console.error("[NewClientForm] Error llamando a /api/alegra/check:", error);
+        console.error(
+          "[NewClientForm] Error llamando a /api/alegra/contacts/check:",
+          error
+        );
 
-        if (cedula) {
+        if (form.cedula.trim()) {
           setAlegraCedulaStatus("error");
           setAlegraCedulaMessage("No se pudo validar la cédula en Alegra.");
-        } else {
-          setAlegraCedulaStatus("idle");
-          setAlegraCedulaMessage(null);
         }
-
-        if (correo) {
+        if (form.correo.trim()) {
           setAlegraCorreoStatus("error");
           setAlegraCorreoMessage("No se pudo validar el correo en Alegra.");
-        } else {
-          setAlegraCorreoStatus("idle");
-          setAlegraCorreoMessage(null);
         }
       }
     }, 500); // pequeño debounce
@@ -224,19 +223,11 @@ const NewClientForm: React.FC = () => {
     };
   }, [form.cedula, form.correo]);
 
-  /**
-   * Validación en tiempo real contra DOCUSEAL por correo.
-   */
+  // ---- Validación en tiempo real contra DocuSeal (por correo) ----
   useEffect(() => {
     const correo = form.correo.trim();
 
-    if (!correo) {
-      setDocuStatus("idle");
-      setDocuMessage(null);
-      return;
-    }
-
-    if (!correo.includes("@")) {
+    if (!correo || !correo.includes("@")) {
       setDocuStatus("idle");
       setDocuMessage(null);
       return;
@@ -273,16 +264,10 @@ const NewClientForm: React.FC = () => {
         const data = await res.json();
 
         if (data.exists) {
-          const count =
-            typeof data.count === "number" && data.count > 0
-              ? data.count
-              : undefined;
+          const count = typeof data.count === "number" ? data.count : 1;
           setDocuStatus("exists");
-          // Guardamos un mensaje genérico; en el correo mostraremos uno unificado.
           setDocuMessage(
-            count
-              ? `Este correo tiene ${count} documento(s) en DocuSeal.`
-              : "Este correo ya tiene documentos en DocuSeal."
+            `Este correo ya tiene ${count} documento(s) en DocuSeal.`
           );
         } else {
           setDocuStatus("not-found");
@@ -297,7 +282,7 @@ const NewClientForm: React.FC = () => {
         setDocuStatus("error");
         setDocuMessage("No se pudo validar contra DocuSeal.");
       }
-    }, 500);
+    }, 500); // debounce
 
     return () => {
       cancelled = true;
@@ -305,21 +290,26 @@ const NewClientForm: React.FC = () => {
     };
   }, [form.correo]);
 
-  /**
-   * Submit
-   */
+  // Derivado: ¿hay duplicados en Alegra que bloquean el submit?
+  const hasAlegraDuplicate =
+    alegraCedulaStatus === "exists" || alegraCorreoStatus === "exists";
+
+  // Derivado: resumen “Este correo ya está registrado en Alegra / DocuSeal”
+  const correoExistsIn: string[] = [];
+  if (alegraCorreoStatus === "exists") correoExistsIn.push("Alegra");
+  if (docuStatus === "exists") correoExistsIn.push("DocuSeal");
+  const correoSummary =
+    correoExistsIn.length > 0
+      ? `Este correo ya está registrado en ${correoExistsIn.join(" y ")}.`
+      : null;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!validate()) return;
 
-    // Defensa extra por si acaso
-    if (
-      alegraCedulaStatus === "exists" ||
-      alegraCorreoStatus === "exists"
-    ) {
-      return;
-    }
+    // Defensa extra: no permitir submit si Alegra dice que ya existe
+    if (hasAlegraDuplicate) return;
 
     setLoading(true);
 
@@ -368,11 +358,7 @@ const NewClientForm: React.FC = () => {
         });
 
         if (!alegraResp.ok) {
-          console.error(
-            "Error Alegra:",
-            alegraResp.status,
-            await alegraResp.text()
-          );
+          console.error("Error Alegra:", alegraResp.status, await alegraResp.text());
         } else {
           const data = await alegraResp.json();
           const alegraId = data?.alegraId as number | undefined;
@@ -388,7 +374,7 @@ const NewClientForm: React.FC = () => {
         console.error("Error llamando a Alegra:", error);
       }
 
-      // 4) Mikrowisp
+      // 4) Mikrowisp (placeholder)
       try {
         const mwResp = await fetch("/api/microwisp/client", {
           method: "POST",
@@ -426,46 +412,6 @@ const NewClientForm: React.FC = () => {
       setLoading(false);
     }
   };
-
-  // ------------------------ Mensajes de UI ------------------------
-
-  // Mensaje unificado para el CORREO con los sistemas donde ya existe
-  let correoSystemsMessage: string | null = null;
-  const correo = form.correo.trim();
-
-  if (
-    correo &&
-    (alegraCorreoStatus === "exists" ||
-      docuStatus === "exists" ||
-      microwispCorreoStatus === "exists")
-  ) {
-    const systems: string[] = [];
-
-    if (alegraCorreoStatus === "exists") systems.push("Alegra");
-    if (docuStatus === "exists") systems.push("DocuSeal");
-    if (microwispCorreoStatus === "exists") systems.push("Mikrowisp");
-
-    if (systems.length === 1) {
-      correoSystemsMessage = `Este correo ya está registrado en ${systems[0]}.`;
-    } else if (systems.length === 2) {
-      correoSystemsMessage = `Este correo ya está registrado en ${systems[0]} y ${systems[1]}.`;
-    } else if (systems.length >= 3) {
-      correoSystemsMessage = `Este correo ya está registrado en ${systems
-        .slice(0, -1)
-        .join(", ")} y ${systems[systems.length - 1]}.`;
-    }
-  }
-
-  const isCorreoChecking =
-    correo &&
-    (alegraCorreoStatus === "checking" || docuStatus === "checking");
-
-  const correoErrorMessage =
-    alegraCorreoStatus === "error"
-      ? alegraCorreoMessage
-      : docuStatus === "error"
-      ? docuMessage
-      : null;
 
   return (
     <div className="space-y-6">
@@ -530,23 +476,23 @@ const NewClientForm: React.FC = () => {
                 onChange={handleChange}
                 error={errors.correo}
               />
-
-              {isCorreoChecking && (
+              {alegraCorreoStatus === "checking" && (
                 <p className="mt-1 text-xs text-slate-400">
-                  Validando correo en Alegra y DocuSeal...
+                  Validando correo en Alegra...
                 </p>
               )}
-
-              {!isCorreoChecking && correoSystemsMessage && (
+              {correoSummary && (
                 <p className="mt-1 text-xs font-medium text-indigo-700">
-                  {correoSystemsMessage}
+                  {correoSummary}
                 </p>
               )}
-
-              {!isCorreoChecking && !correoSystemsMessage && correoErrorMessage && (
-                <p className="mt-1 text-xs text-red-500">
-                  {correoErrorMessage}
+              {docuStatus === "checking" && (
+                <p className="mt-1 text-xs text-slate-400">
+                  Buscando envíos en DocuSeal...
                 </p>
+              )}
+              {docuStatus === "error" && docuMessage && (
+                <p className="mt-1 text-xs text-red-500">{docuMessage}</p>
               )}
             </div>
           </div>
@@ -634,7 +580,9 @@ const NewClientForm: React.FC = () => {
               disabled={
                 loading ||
                 alegraCedulaStatus === "checking" ||
-                alegraCorreoStatus === "checking"
+                alegraCorreoStatus === "checking" ||
+                docuStatus === "checking" ||
+                hasAlegraDuplicate
               }
             >
               {loading ? "Creando cliente..." : "Crear cliente"}
